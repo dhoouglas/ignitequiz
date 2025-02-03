@@ -1,18 +1,6 @@
 import { useEffect, useState } from "react";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Alert, View, Text } from "react-native";
-
-import { useNavigation, useRoute } from "@react-navigation/native";
-
-import { styles } from "./styles";
-
-import { QUIZ } from "../../data/quiz";
-import { historyAdd } from "../../storage/quizHistoryStorage";
-
-import { Loading } from "../../components/Loading";
-import { Question } from "../../components/Question";
-import { QuizHeader } from "../../components/QuizHeader";
-import { ConfirmButton } from "../../components/ConfirmButton";
-import { OutlineButton } from "../../components/OutlineButton";
 import Animated, {
   Easing,
   Extrapolation,
@@ -24,9 +12,22 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { ProgressBar } from "../../components/ProgressBar";
+
+import { useNavigation, useRoute } from "@react-navigation/native";
+
+import { styles } from "./styles";
 import { THEME } from "../../styles/theme";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+
+import { QUIZ } from "../../data/quiz";
+import { historyAdd } from "../../storage/quizHistoryStorage";
+
+import { Loading } from "../../components/Loading";
+import { Question } from "../../components/Question";
+import { QuizHeader } from "../../components/QuizHeader";
+import { ConfirmButton } from "../../components/ConfirmButton";
+import { OutlineButton } from "../../components/OutlineButton";
+import { ProgressBar } from "../../components/ProgressBar";
+import { OverlayFeedback } from "../../components/OverlayFeedback";
 
 interface Params {
   id: string;
@@ -40,6 +41,7 @@ const CARD_SKIP_AREA = -200;
 export function Quiz() {
   const [points, setPoints] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [statusReply, setStatusReply] = useState(0);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [quiz, setQuiz] = useState<QuizProps>({} as QuizProps);
   const [alternativeSelected, setAlternativeSelected] = useState<null | number>(
@@ -91,8 +93,11 @@ export function Quiz() {
     }
 
     if (quiz.questions[currentQuestion].correct === alternativeSelected) {
+      setStatusReply(1);
       setPoints((prevState) => prevState + 1);
+      handleNextQuestion();
     } else {
+      setStatusReply(2);
       shakeAnimation();
     }
 
@@ -118,7 +123,12 @@ export function Quiz() {
   function shakeAnimation() {
     shake.value = withSequence(
       withTiming(3, { duration: 400, easing: Easing.bounce }),
-      withTiming(0)
+      withTiming(0, undefined, (finished) => {
+        "worklet";
+        if (finished) {
+          runOnJS(handleNextQuestion)();
+        }
+      })
     );
   }
 
@@ -224,6 +234,7 @@ export function Quiz() {
 
   return (
     <View style={styles.container}>
+      <OverlayFeedback status={statusReply} />
       <Animated.View style={fixedProgressBarStyles}>
         <Text style={styles.title}>{quiz.title}</Text>
 
@@ -253,6 +264,7 @@ export function Quiz() {
               question={quiz.questions[currentQuestion]}
               alternativeSelected={alternativeSelected}
               setAlternativeSelected={setAlternativeSelected}
+              onUnmount={() => setStatusReply(0)}
             />
           </Animated.View>
         </GestureDetector>
